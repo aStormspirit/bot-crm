@@ -203,3 +203,69 @@ textarea.missing { background: var(--missing); }
   table.kv td.key { width: 35%; }
   .main { padding: 12px; }
 }
+
+/* ===== экраны бота ===== */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: var(--panel); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--accent-2); color: var(--accent); font-weight: 600; }
+.screen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 22px; align-items: start; }
+.screen-card { scroll-margin-top: 12px; }
+.screen-head { margin-bottom: 8px; min-height: 38px; }
+.phone { border-radius: 18px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.08); display: flex; flex-direction: column; color: #000; font-size: 14px; }
+.phone-top { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #fff; border-bottom: 1px solid #e7e8ec; }
+.phone-top b { display: block; font-size: 14px; }
+.phone-sub { display: block; font-size: 12px; color: #8a8f99; }
+.phone-ava { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; background: #2aabee; }
+.phone.vk .phone-ava { background: #0077ff; }
+.phone-chat { padding: 14px 10px; min-height: 120px; flex: 1; }
+.phone.telegram .phone-chat { background: #cfdcc1 linear-gradient(160deg, #d6e2c4 0%, #b9cfa9 100%); }
+.phone.vk .phone-chat { background: #fff; }
+.bubble-wrap { max-width: 92%; }
+.bubble { position: relative; background: #fff; border-radius: 14px 14px 14px 4px; padding: 7px 10px 18px; box-shadow: 0 1px 1px rgba(0,0,0,.12); overflow: hidden; }
+.phone.vk .bubble { background: #ebedf0; box-shadow: none; border-radius: 16px 16px 16px 4px; }
+.bubble-time { position: absolute; right: 8px; bottom: 3px; font-size: 11px; color: #8a8f99; }
+.bubble-text { white-space: pre-wrap; word-break: break-word; line-height: 1.38; }
+.bubble-text.editable { cursor: text; border-radius: 6px; margin: -2px -4px; padding: 2px 4px; transition: background .15s; }
+.bubble-text.editable:hover { background: rgba(47,111,237,.08); outline: 1px dashed rgba(47,111,237,.5); }
+.bubble-edit { width: 100%; border: 1px solid #2f6fed; border-radius: 6px; padding: 4px 6px; font: inherit; line-height: 1.38; resize: none; background: #fff; color: #000; overflow: hidden; }
+.missing-text { color: #d93a3a; }
+.ph { background: #fff3c4; color: #8a5a00; border-radius: 4px; padding: 0 3px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.bubble-img { position: relative; margin: -7px -10px 8px; cursor: pointer; background: #e9ecef; min-height: 80px; }
+.bubble-img img { display: block; width: 100%; max-height: 260px; object-fit: cover; }
+.img-missing { padding: 30px; text-align: center; color: #8a8f99; font-size: 13px; }
+.img-overlay { position: absolute; inset: auto 8px 8px auto; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; padding: 3px 8px; border-radius: 10px; opacity: 0; transition: opacity .15s; }
+.bubble-img:hover .img-overlay { opacity: 1; }
+@media (hover: none) { .img-overlay { opacity: 1; } }
+.kb-inline { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; }
+.kb-reply { background: #f1f2f4; padding: 6px; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid #e3e4e8; }
+.kb-row { display: flex; gap: 4px; }
+.kb-reply .kb-row { gap: 6px; }
+.kb-btn { flex: 1; min-width: 0; border-radius: 8px; padding: 8px 6px; font-size: 13px; line-height: 1.25; justify-content: center; text-align: center; white-space: normal; border: 0; color: #000; }
+.kb-btn:hover { outline: 2px solid #2f6fed; outline-offset: 1px; }
+/* Telegram */
+.phone.telegram .kb-inline .kb-btn { background: rgba(0,0,0,.22); color: #fff; backdrop-filter: blur(4px); }
+.phone.telegram .kb-reply .kb-btn { background: #fff; box-shadow: 0 1px 1px rgba(0,0,0,.1); }
+.phone.telegram .kb-btn.c-primary { background: #3390ec !important; color: #fff; }
+.phone.telegram .kb-btn.c-success { background: #31b545 !important; color: #fff; }
+.phone.telegram .kb-btn.c-danger { background: #e53935 !important; color: #fff; }
+/* VK */
+.phone.vk .kb-btn { background: #e5ebf1; color: #55677d; font-weight: 500; }
+.phone.vk .kb-btn.c-primary { background: #2688eb; color: #fff; }
+.phone.vk .kb-btn.c-success { background: #4bb34b; color: #fff; }
+.phone.vk .kb-btn.c-danger { background: #e64646; color: #fff; }
+.phone.vk .kb-reply { background: #fff; }
+.phone-input { background: #fff; color: #8a8f99; padding: 10px 14px; border-top: 1px solid #e3e4e8; font-size: 13px; }
+.color-chip.c-primary { border-color: #2f6fed; }
+.color-chip.c-success { border-color: #31b545; }
+.color-chip.c-danger { border-color: #e53935; }
+.err-text { color: var(--danger); }
+input.invalid, textarea.invalid { border-color: var(--danger); background: var(--missing); }
+.all-content section { margin-bottom: 26px; }
+.all-content h3 { font-size: 15px; margin: 0 0 10px; }
+.text-row { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; margin-bottom: 8px; }
+.text-row-head { margin-bottom: 6px; }
+.btn-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.btn-row { display: flex; flex-direction: column; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; }
+.no-content { max-width: 620px; margin: 8vh auto; text-align: center; }
+.no-content p { line-height: 1.55; }

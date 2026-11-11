@@ -4,6 +4,8 @@ import { DEFAULT_CFG, LS, allPaths, botCfg, dirOf, ext, makeDoc, matches, serial
 import { useUi } from '../ui.jsx';
 import TextEditor from './TextEditor.jsx';
 import Images from './Images.jsx';
+import ScreensView from './ScreensView.jsx';
+import { findContentPath } from '../content.js';
 import CommitDialog from './CommitDialog.jsx';
 import SettingsDialog from './SettingsDialog.jsx';
 import { PLATFORMS } from '../store.js';
@@ -26,12 +28,13 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
   const [cfg, setCfg] = useState(() => (bot ? botCfg(bot) : { ...DEFAULT_CFG, ...LS.get('botcrm:cfg:' + full, {}) }));
   const botCfgKey = bot ? JSON.stringify(botCfg(bot)) : '';
   useEffect(() => { if (bot) setCfg(botCfg(bot)); }, [botCfgKey]);
-  const [tab, setTab] = useState('texts');
+  const [tab, setTab] = useState(bot ? 'screens' : 'texts');
   const [file, setFile] = useState(null);
   const [cmp, setCmp] = useState('');
   const [filter, setFilter] = useState('');
   const [imgDir, setImgDir] = useState('');
   const [modal, setModal] = useState(null);
+  const [, bump] = useState(0);
 
   const resetEdits = () => { setDirty(new Map()); docs.current.clear(); setDocVer(v => v + 1); };
 
@@ -157,6 +160,9 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
   };
 
   const ws = { full, repo, tree, dirty, docs, docVer, getDoc, commitDoc, setChange, cfg, filesOf, paths };
+  const contentPath = useMemo(() => (tree ? findContentPath([...tree.keys()], bot?.folder) : null), [tree, bot?.folder]);
+  const contentScreens = contentPath ? docs.current.get(contentPath)?.data?.screens || [] : [];
+  const showScreensTab = !!bot || !!contentPath;
 
   const textFiles = tree ? filesOf('texts').filter(p => p.toLowerCase().includes(filter.toLowerCase())) : [];
   const imageFiles = tree ? filesOf('images') : [];
@@ -197,14 +203,23 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
       <div className="body">
         <aside className="side">
           <div className="tabs">
+            {showScreensTab && <button className={tab === 'screens' ? 'on' : ''} onClick={() => setTab('screens')}>📱 Экраны</button>}
             <button className={tab === 'texts' ? 'on' : ''} onClick={() => setTab('texts')}>📝 Тексты</button>
             <button className={tab === 'images' ? 'on' : ''} onClick={() => setTab('images')}>🖼 Картинки</button>
           </div>
-          <div style={{ padding: 8 }}>
-            <input style={{ width: '100%' }} placeholder="Фильтр файлов…" value={filter} onChange={e => setFilter(e.target.value)} />
-          </div>
+          {tab !== 'screens' && (
+            <div style={{ padding: 8 }}>
+              <input style={{ width: '100%' }} placeholder="Фильтр файлов…" value={filter} onChange={e => setFilter(e.target.value)} />
+            </div>
+          )}
           <div className="files">
-            {tab === 'texts' ? (
+            {tab === 'screens' ? (
+              contentScreens.length ? contentScreens.map(sc => (
+                <div key={sc.id} className="file" onClick={() => document.getElementById('screen-' + sc.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                  {sc.title}
+                </div>
+              )) : <div className="muted small" style={{ padding: 12 }}>{contentPath ? 'Загрузка…' : 'Нет файла контента'}</div>
+            ) : tab === 'texts' ? (
               textFiles.length ? textFiles.map((p, i) => {
                 const d = dirOf(p), showDir = i === 0 || dirOf(textFiles[i - 1]) !== d;
                 return (
@@ -224,7 +239,10 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
         </aside>
 
         <main className="main">
-          {!tree ? null : tab === 'texts' ? (
+          {!tree ? null : tab === 'screens' ? (
+            contentPath ? <ScreensView key={contentPath} ws={ws} path={contentPath} bot={bot} onLoaded={() => bump(n => n + 1)} />
+              : <NoContent bot={bot} />
+          ) : tab === 'texts' ? (
             file ? <TextEditor key={file + '|' + docVer} ws={ws} file={file} cmp={cmp} setCmp={setCmp} onDeleted={() => setFile(null)} />
               : <div className="empty"><div className="big-ico">📝</div>Выберите файл с текстами слева.<br /><span className="small">JSON и YAML открываются как таблица «ключ → текст», остальные — как обычный текст.</span></div>
           ) : (
@@ -255,5 +273,21 @@ function ImageDirs({ files, filter, imgDir, setImgDir }) {
         <div key={d} className={'file' + (imgDir === d ? ' on' : '')} onClick={() => setImgDir(d)}>📁 {d || '/'} <span className="muted">({n})</span></div>
       ))}
     </>
+  );
+}
+
+function NoContent({ bot }) {
+  return (
+    <div className="no-content">
+      <div className="big-ico">📱</div>
+      <h2>Экраны бота пока недоступны</h2>
+      <p className="muted">
+        Чтобы видеть и редактировать экраны (сообщения, кнопки и картинки) как в мессенджере, тексты бота должны лежать
+        отдельно от кода — в файле <span className="mono">content/content.json</span>{bot?.folder ? <> внутри папки <span className="mono">{bot.folder}</span></> : ''} в формате <span className="mono">bot-crm/1</span>.
+      </p>
+      <p className="muted">
+        Формат описан в README Bot CRM. Пока можно править файлы во вкладках «Тексты» и «Картинки».
+      </p>
+    </div>
   );
 }
