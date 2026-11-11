@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { blobText, listBranches, loadTree } from '../github.js';
-import { DEFAULT_CFG, LS, allPaths, dirOf, ext, makeDoc, matches, serialize, baseName, isObj } from '../lib.js';
+import { DEFAULT_CFG, LS, allPaths, botCfg, dirOf, ext, makeDoc, matches, serialize, baseName, isObj } from '../lib.js';
 import { useUi } from '../ui.jsx';
 import TextEditor from './TextEditor.jsx';
 import Images from './Images.jsx';
 import CommitDialog from './CommitDialog.jsx';
 import SettingsDialog from './SettingsDialog.jsx';
+import { PLATFORMS } from '../store.js';
 
-export default function Workspace({ repo, onDirty }) {
+export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSaveBotCfg, onAddAsBot }) {
   const { toast, busy } = useUi();
   const full = repo.full_name;
   const canPush = !repo.permissions || repo.permissions.push;
@@ -21,7 +22,10 @@ export default function Workspace({ repo, onDirty }) {
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
   const [docVer, setDocVer] = useState(0);
-  const [cfg, setCfg] = useState(() => ({ ...DEFAULT_CFG, ...LS.get('botcrm:cfg:' + full, {}) }));
+  const branchKey = 'botcrm:branch:' + (bot ? 'bot:' + bot.id : full);
+  const [cfg, setCfg] = useState(() => (bot ? botCfg(bot) : { ...DEFAULT_CFG, ...LS.get('botcrm:cfg:' + full, {}) }));
+  const botCfgKey = bot ? JSON.stringify(botCfg(bot)) : '';
+  useEffect(() => { if (bot) setCfg(botCfg(bot)); }, [botCfgKey]);
   const [tab, setTab] = useState('texts');
   const [file, setFile] = useState(null);
   const [cmp, setCmp] = useState('');
@@ -42,7 +46,7 @@ export default function Workspace({ repo, onDirty }) {
   useEffect(() => {
     busy(async () => {
       const bs = await listBranches(full);
-      let b = LS.get('botcrm:branch:' + full, '') || repo.default_branch;
+      let b = LS.get(branchKey, '') || bot?.branch || repo.default_branch;
       if (!bs.includes(b)) b = repo.default_branch;
       setBranches(bs);
       setBranch(b);
@@ -62,7 +66,7 @@ export default function Workspace({ repo, onDirty }) {
 
   const changeBranch = b => {
     if (!confirmDiscard('Несохранённые изменения будут потеряны. Переключить ветку?')) return;
-    setBranch(b); LS.set('botcrm:branch:' + full, b);
+    setBranch(b); LS.set(branchKey, b);
     resetEdits(); setFile(null); setCmp('');
     busy(() => reload(b));
   };
@@ -143,7 +147,7 @@ export default function Workspace({ repo, onDirty }) {
   const afterCommit = async ({ prUrl, commitSha, newBranch, count }) => {
     resetEdits();
     let b = branch;
-    if (newBranch) { b = newBranch; setBranches(x => [...x, newBranch]); setBranch(newBranch); LS.set('botcrm:branch:' + full, newBranch); }
+    if (newBranch) { b = newBranch; setBranches(x => [...x, newBranch]); setBranch(newBranch); LS.set(branchKey, newBranch); }
     const t = await reload(b);
     if (file && !t.has(file)) setFile(null);
     setModal(null);
@@ -161,7 +165,15 @@ export default function Workspace({ repo, onDirty }) {
     <div className="ws">
       <div className="ws-head">
         <div className="ws-title">
-          <a href={repo.html_url} target="_blank" rel="noopener noreferrer" title="Открыть на GitHub">{full}</a>
+          {bot ? (
+            <>
+              {project && <span className="muted crumb">{project.emoji} {project.name} /</span>}
+              <span>{PLATFORMS[bot.platform]?.icon || '🤖'} {bot.name}</span>
+              <a className="muted repo-link mono" href={`${repo.html_url}${bot.folder ? `/tree/${branch || repo.default_branch}/${bot.folder}` : ''}`} target="_blank" rel="noopener noreferrer" title="Открыть на GitHub">{full}{bot.folder ? '/' + bot.folder : ''} ↗</a>
+            </>
+          ) : (
+            <a href={repo.html_url} target="_blank" rel="noopener noreferrer" title="Открыть на GitHub">{full}</a>
+          )}
           {repo.private && <span className="badge">private</span>}
           {!canPush && <span className="badge warn">только чтение</span>}
         </div>
@@ -175,7 +187,8 @@ export default function Workspace({ repo, onDirty }) {
         )}
         <button className="ghost" title="Обновить из GitHub" onClick={refresh}>⟳</button>
         <span className="grow" />
-        <button onClick={() => setModal('settings')}>⚙ Настройки</button>
+        {bot ? <button onClick={onEditBot}>🤖 Бот</button> : <button onClick={onAddAsBot} title="Добавить этот репозиторий как бота в проект">＋ В проект</button>}
+        <button onClick={() => setModal('settings')}>⚙ Файлы</button>
         <button className="primary" disabled={!dirty.size} onClick={() => setModal('commit')}>
           Сохранить {dirty.size > 0 && `(${dirty.size})`}
         </button>
@@ -220,7 +233,12 @@ export default function Workspace({ repo, onDirty }) {
         </main>
       </div>
 
-      {modal === 'settings' && <SettingsDialog cfg={cfg} full={full} onClose={() => setModal(null)} onSave={c => { setCfg(c); setModal(null); }} />}
+      {modal === 'settings' && <SettingsDialog cfg={cfg} title={bot ? `Файлы бота «${bot.name}»` : `Файлы репозитория ${full}`} onClose={() => setModal(null)}
+        onSave={c => {
+          setCfg(c); setModal(null);
+          if (bot) onSaveBotCfg(c);
+          else if (c === DEFAULT_CFG) LS.del('botcrm:cfg:' + full); else LS.set('botcrm:cfg:' + full, c);
+        }} />}
       {modal === 'commit' && <CommitDialog ws={ws} branch={branch} headSha={headSha} canPush={canPush} onClose={() => setModal(null)} onDone={afterCommit}
         onUndo={p => { setChange(p, null); if (p === file && !tree.has(p)) setFile(null); setDocVer(v => v + 1); }} />}
     </div>

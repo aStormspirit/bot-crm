@@ -15,5 +15,7 @@ export default async function handler(req, res) {
   });
   if (!r.ok) return res.status(200).json({ authenticated: false, clientId });
   const u = await r.json();
-  res.status(200).json({ authenticated: true, clientId, user: { login: u.login, name: u.name, avatar_url: u.avatar_url } });
+  res.status(200).json({ authenticated: true, clientId, user: { login: u.login, name: u.name, avatar_url: u.avatar_url },
+    // гист нужен для синхронизации проектов между устройствами
+    canSync: String(r.headers.get('x-oauth-scopes') || session.s || '').split(/[ ,]+/).includes('gist') });
 }

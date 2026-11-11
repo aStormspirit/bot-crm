@@ -5,7 +5,7 @@ export default function handler(req, res) {
   const clientId = process.env.GITHUB_CLIENT_ID;
   if (!clientId) return res.status(500).send('GITHUB_CLIENT_ID не задан в переменных окружения Vercel');
   const state = crypto.randomBytes(16).toString('hex');
-  const params = new URLSearchParams({ client_id: clientId, scope: 'repo read:user read:org', state, allow_signup: 'true' });
+  const params = new URLSearchParams({ client_id: clientId, scope: 'repo read:user read:org gist', state, allow_signup: 'true' });
   // Без APP_URL не передаём redirect_uri: GitHub сам вернёт на Callback URL из настроек OAuth App.
   // Так вход не ломается, если адрес на Vercel отличается от вычисленного.
   if (process.env.APP_URL) params.set('redirect_uri', `${baseUrl(req)}/api/auth/callback`);

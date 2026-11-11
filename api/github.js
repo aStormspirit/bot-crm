@@ -1,7 +1,7 @@
 import { getSession } from './_lib/session.js';
 
 // Разрешаем только нужные эндпоинты GitHub API.
-const ALLOWED = /^\/(user(\/repos)?(\?.*)?|repos\/[\w.-]+\/[\w.-]+(\/.*)?)$/;
+const ALLOWED = /^\/(user(\/repos)?(\?.*)?|repos\/[\w.-]+\/[\w.-]+(\/.*)?|gists(\/[0-9a-f]+)?(\?.*)?)$/;
 
 export const config = { api: { bodyParser: { sizeLimit: '4.5mb' } } };
 

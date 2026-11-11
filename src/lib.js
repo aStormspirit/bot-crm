@@ -107,3 +107,12 @@ export function serialize(doc) {
 }
 const PH_RE = /\{\{?\s*[\w.]*\s*\}?\}|\$\{[^}]*\}|%[\d$]*[sdif]|<\/?[a-z][^>]*>/gi;
 export const placeholders = s => (String(s ?? '').match(PH_RE) || []).sort().join('|');
+
+/** Настройки файлов для бота: папка бота сужает поиск, если отдельные папки не заданы. */
+export const botCfg = b => ({
+  ...DEFAULT_CFG,
+  textExt: b.textExt || DEFAULT_CFG.textExt,
+  exclude: b.exclude || DEFAULT_CFG.exclude,
+  textDirs: b.textDirs || b.folder || '',
+  imageDirs: b.imageDirs || b.folder || '',
+});
