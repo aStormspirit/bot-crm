@@ -8,6 +8,7 @@ import ScreensView from './ScreensView.jsx';
 import { findContentPath } from '../content.js';
 import { findFlowPath } from '../flowPath.js';
 const FlowMap = lazy(() => import('./FlowMap.jsx'));
+const Broadcasts = lazy(() => import('./Broadcasts.jsx'));
 import CommitDialog from './CommitDialog.jsx';
 import SettingsDialog from './SettingsDialog.jsx';
 import { PLATFORMS } from '../store.js';
@@ -171,8 +172,13 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
   const showScreensTab = !!contentPath || (!!bot && !flowPath);
   const blocked = flowErrors.length > 0;
 
+  // У бота с картой тексты и картинки правятся на карте: отдельные вкладки не нужны.
+  const fileTabs = !flowPath;
+  const showBroadcasts = !!bot || !!flowPath;
+  const broadcastPlatform = flowData?.bot || ({ telegram: 'tg', vk: 'vk', web: 'web' })[bot?.platform] || 'tg';
+
   useEffect(() => {
-    if (flowPath && tab === 'screens' && !contentPath) setTab('map');
+    if (flowPath && ((tab === 'screens' && !contentPath) || tab === 'texts' || tab === 'images')) setTab('map');
     if (!flowPath && tab === 'map') setTab(showScreensTab ? 'screens' : 'texts');
   }, [flowPath, contentPath]);
   useEffect(() => { setFlowData(null); setFlowErrors([]); }, [flowPath]);
@@ -218,16 +224,22 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
           <div className="tabs">
             {flowPath && <button className={tab === 'map' ? 'on' : ''} onClick={() => setTab('map')}>🗺 Карта</button>}
             {showScreensTab && <button className={tab === 'screens' ? 'on' : ''} onClick={() => setTab('screens')}>📱 Экраны</button>}
-            <button className={tab === 'texts' ? 'on' : ''} onClick={() => setTab('texts')}>📝 Тексты</button>
-            <button className={tab === 'images' ? 'on' : ''} onClick={() => setTab('images')}>🖼 Картинки</button>
+            {fileTabs && <button className={tab === 'texts' ? 'on' : ''} onClick={() => setTab('texts')}>📝 Тексты</button>}
+            {fileTabs && <button className={tab === 'images' ? 'on' : ''} onClick={() => setTab('images')}>🖼 Картинки</button>}
+            {showBroadcasts && <button className={tab === 'broadcasts' ? 'on' : ''} onClick={() => setTab('broadcasts')}>📣 Рассылки</button>}
           </div>
-          {tab !== 'screens' && tab !== 'map' && (
+          {(tab === 'texts' || tab === 'images') && (
             <div style={{ padding: 8 }}>
               <input style={{ width: '100%' }} placeholder="Фильтр файлов…" value={filter} onChange={e => setFilter(e.target.value)} />
             </div>
           )}
           <div className="files">
-            {tab === 'map' ? (
+            {tab === 'broadcasts' ? (
+              <div className="muted small" style={{ padding: 12, lineHeight: 1.5 }}>
+                Рассылки отправляет Chat API всем людям бота: разово по времени или каждому через паузу после события.
+                Текст и фото рассылки хранятся в Chat API, а не в репозитории.
+              </div>
+            ) : tab === 'map' ? (
               flowData ? Object.entries(flowData.screens || {}).map(([sid, sc]) => (
                 <div key={sid} className={'file' + (focus?.id === sid ? ' on' : '') + (flowErrors.some(e => e.screen === sid) ? ' has-err' : '')}
                   onClick={() => setFocus({ id: sid, t: Date.now() })}>
@@ -256,11 +268,15 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
               <ImageDirs files={imageFiles} filter={filter} imgDir={imgDir} setImgDir={setImgDir} />
             )}
           </div>
-          {tab === 'texts' && <div style={{ padding: 8, borderTop: '1px solid var(--line)' }}><button style={{ width: '100%' }} onClick={newTextFile}>+ Новый файл</button></div>}
+          {tab === 'texts' && fileTabs && <div style={{ padding: 8, borderTop: '1px solid var(--line)' }}><button style={{ width: '100%' }} onClick={newTextFile}>+ Новый файл</button></div>}
         </aside>
 
-        <main className={'main' + (tab === 'map' ? ' flush' : '')}>
-          {!tree ? null : tab === 'map' && flowPath ? (
+        <main className={'main' + (tab === 'map' || tab === 'broadcasts' ? ' flush' : '')}>
+          {tab === 'broadcasts' ? (
+            <Suspense fallback={<div className="muted" style={{ padding: 16 }}>Загрузка…</div>}>
+              <Broadcasts platform={broadcastPlatform} botName={bot?.name} />
+            </Suspense>
+          ) : !tree ? null : tab === 'map' && flowPath ? (
             <Suspense fallback={<div className="muted" style={{ padding: 16 }}>Загрузка карты…</div>}>
               <FlowMap key={flowPath + '|' + docVer} ws={ws} path={flowPath} focus={focus} onLoaded={setFlowData} onErrors={setFlowErrors} />
             </Suspense>
