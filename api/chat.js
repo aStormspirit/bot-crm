@@ -68,11 +68,7 @@ export default async function handler(req, res) {
   if (!ALLOWED.test(path) || path.includes('..')) return res.status(400).json({ message: 'Path not allowed' });
   if (READ_ONLY.test(path) && req.method !== 'GET') return res.status(405).json({ message: 'Пользователи и аналитика доступны только для чтения' });
 
-  const headers = { Authorization: `Bearer ${process.env.CHAT_API_CRM_TOKEN}`, Accept: 'application/json' };
-  if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
-    headers['CF-Access-Client-Id'] = process.env.CF_ACCESS_CLIENT_ID;
-    headers['CF-Access-Client-Secret'] = process.env.CF_ACCESS_CLIENT_SECRET;
-  }
+  const headers = chatHeaders();
   let body;
   if (req.method !== 'GET' && req.method !== 'DELETE') {
     try {
@@ -84,12 +80,51 @@ export default async function handler(req, res) {
   }
   let r;
   try {
-    r = await fetch(process.env.CHAT_API_URL.replace(/\/+$/, '') + '/api/v1' + path, { method: req.method, headers, body });
+    r = await fetch(upstream(path), { method: req.method, headers, body, redirect: 'manual', signal: AbortSignal.timeout(25000) });
   } catch (e) {
-    return res.status(502).json({ message: 'Chat API недоступен: ' + e.message });
+    const timeout = e.name === 'TimeoutError' || e.name === 'AbortError';
+    return res.status(timeout ? 504 : 502).json({ message: timeout ? 'Chat API не ответил за 25 секунд' : 'Chat API недоступен: ' + e.message });
   }
+  const problem = upstreamProblem(r);
+  if (problem) return res.status(502).json({ message: problem });
   const text = await r.text();
   res.status(r.status);
   res.setHeader('Content-Type', r.headers.get('content-type') || 'application/json');
   res.send(text);
+}
+
+const upstream = path => process.env.CHAT_API_URL.replace(/\/+$/, '') + '/api/v1' + path;
+
+function chatHeaders() {
+  const headers = { Authorization: `Bearer ${process.env.CHAT_API_CRM_TOKEN}`, Accept: 'application/json' };
+  if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
+    headers['CF-Access-Client-Id'] = process.env.CF_ACCESS_CLIENT_ID;
+    headers['CF-Access-Client-Secret'] = process.env.CF_ACCESS_CLIENT_SECRET;
+  }
+  return headers;
+}
+
+/** Ответ не от Chat API: редирект Cloudflare Access на вход или чужая HTML-страница. */
+function upstreamProblem(r) {
+  const cf = process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET;
+  const loc = r.headers.get('location') || '';
+  if (r.status >= 300 && r.status < 400) {
+    if (/cloudflareaccess\.com|cdn-cgi\/access/.test(loc)) {
+      return cf
+        ? 'Cloudflare Access не пропускает CRM: сервисный токен из CF_ACCESS_CLIENT_ID/SECRET не добавлен в политику (Service Auth) приложения Chat API или ключи скопированы с ошибкой'
+        : 'Chat API закрыт Cloudflare Access: задайте в Vercel CF_ACCESS_CLIENT_ID и CF_ACCESS_CLIENT_SECRET и сделайте Redeploy';
+    }
+    return `Chat API ответил перенаправлением (${r.status}) на ${loc || 'другой адрес'}: проверьте CHAT_API_URL`;
+  }
+  const type = r.headers.get('content-type') || '';
+  if (r.status === 403 && !type.includes('json')) {
+    return 'Cloudflare отклонил запрос (403): проверьте сервисный токен Cloudflare Access и политику приложения Chat API';
+  }
+  if (r.status === 401 && type.includes('json')) {
+    return 'Chat API не принял токен: CHAT_API_CRM_TOKEN в Vercel должен совпадать с CHAT_API_CRM_TOKEN в ENV_FILE сервера, а сервер — быть передеплоен после его добавления';
+  }
+  if (r.ok && r.status !== 204 && !type.includes('json')) {
+    return `Chat API ответил не JSON (${type || 'без типа'}): проверьте CHAT_API_URL и Cloudflare Access`;
+  }
+  return null;
 }

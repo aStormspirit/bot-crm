@@ -16,5 +16,6 @@ export async function chat(path, { method = 'GET', json, form } = {}) {
   let data = null;
   try { data = await r.json(); } catch {}
   if (!r.ok) throw new Error(errorText(data, r.status));
+  if (data === null) throw new Error(`Сервер ответил не JSON (HTTP ${r.status}): проверьте адрес Chat API и Cloudflare Access`);
   return data;
 }
