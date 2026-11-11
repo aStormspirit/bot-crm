@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { blobText, listBranches, loadTree } from '../github.js';
 import { DEFAULT_CFG, LS, allPaths, botCfg, dirOf, ext, makeDoc, matches, serialize, baseName, isObj } from '../lib.js';
 import { useUi } from '../ui.jsx';
@@ -6,6 +6,8 @@ import TextEditor from './TextEditor.jsx';
 import Images from './Images.jsx';
 import ScreensView from './ScreensView.jsx';
 import { findContentPath } from '../content.js';
+import { findFlowPath } from '../flowPath.js';
+const FlowMap = lazy(() => import('./FlowMap.jsx'));
 import CommitDialog from './CommitDialog.jsx';
 import SettingsDialog from './SettingsDialog.jsx';
 import { PLATFORMS } from '../store.js';
@@ -34,6 +36,9 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
   const [filter, setFilter] = useState('');
   const [imgDir, setImgDir] = useState('');
   const [modal, setModal] = useState(null);
+  const [flowData, setFlowData] = useState(null);
+  const [flowErrors, setFlowErrors] = useState([]);
+  const [focus, setFocus] = useState(null);
   const [, bump] = useState(0);
 
   const resetEdits = () => { setDirty(new Map()); docs.current.clear(); setDocVer(v => v + 1); };
@@ -162,7 +167,15 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
   const ws = { full, repo, tree, dirty, docs, docVer, getDoc, commitDoc, setChange, cfg, filesOf, paths };
   const contentPath = useMemo(() => (tree ? findContentPath([...tree.keys()], bot?.folder) : null), [tree, bot?.folder]);
   const contentScreens = contentPath ? docs.current.get(contentPath)?.data?.screens || [] : [];
-  const showScreensTab = !!bot || !!contentPath;
+  const flowPath = useMemo(() => (tree ? findFlowPath([...tree.keys()], bot?.folder) : null), [tree, bot?.folder]);
+  const showScreensTab = !!contentPath || (!!bot && !flowPath);
+  const blocked = flowErrors.length > 0;
+
+  useEffect(() => {
+    if (flowPath && tab === 'screens' && !contentPath) setTab('map');
+    if (!flowPath && tab === 'map') setTab(showScreensTab ? 'screens' : 'texts');
+  }, [flowPath, contentPath]);
+  useEffect(() => { setFlowData(null); setFlowErrors([]); }, [flowPath]);
 
   const textFiles = tree ? filesOf('texts').filter(p => p.toLowerCase().includes(filter.toLowerCase())) : [];
   const imageFiles = tree ? filesOf('images') : [];
@@ -195,7 +208,7 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
         <span className="grow" />
         {bot ? <button onClick={onEditBot}>🤖 Бот</button> : <button onClick={onAddAsBot} title="Добавить этот репозиторий как бота в проект">＋ В проект</button>}
         <button onClick={() => setModal('settings')}>⚙ Файлы</button>
-        <button className="primary" disabled={!dirty.size} onClick={() => setModal('commit')}>
+        <button className="primary" disabled={!dirty.size || blocked} title={blocked ? `В карте бота ошибок: ${flowErrors.length} — исправьте их во вкладке «Карта»` : ''} onClick={() => setModal('commit')}>
           Сохранить {dirty.size > 0 && `(${dirty.size})`}
         </button>
       </div>
@@ -203,17 +216,25 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
       <div className="body">
         <aside className="side">
           <div className="tabs">
+            {flowPath && <button className={tab === 'map' ? 'on' : ''} onClick={() => setTab('map')}>🗺 Карта</button>}
             {showScreensTab && <button className={tab === 'screens' ? 'on' : ''} onClick={() => setTab('screens')}>📱 Экраны</button>}
             <button className={tab === 'texts' ? 'on' : ''} onClick={() => setTab('texts')}>📝 Тексты</button>
             <button className={tab === 'images' ? 'on' : ''} onClick={() => setTab('images')}>🖼 Картинки</button>
           </div>
-          {tab !== 'screens' && (
+          {tab !== 'screens' && tab !== 'map' && (
             <div style={{ padding: 8 }}>
               <input style={{ width: '100%' }} placeholder="Фильтр файлов…" value={filter} onChange={e => setFilter(e.target.value)} />
             </div>
           )}
           <div className="files">
-            {tab === 'screens' ? (
+            {tab === 'map' ? (
+              flowData ? Object.entries(flowData.screens || {}).map(([sid, sc]) => (
+                <div key={sid} className={'file' + (focus?.id === sid ? ' on' : '') + (flowErrors.some(e => e.screen === sid) ? ' has-err' : '')}
+                  onClick={() => setFocus({ id: sid, t: Date.now() })}>
+                  {flowData.start === sid ? '▶ ' : sc?.on ? '⚡ ' : ''}{sc?.title || sid}
+                </div>
+              )) : <div className="muted small" style={{ padding: 12 }}>Загрузка…</div>
+            ) : tab === 'screens' ? (
               contentScreens.length ? contentScreens.map(sc => (
                 <div key={sc.id} className="file" onClick={() => document.getElementById('screen-' + sc.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
                   {sc.title}
@@ -238,8 +259,12 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
           {tab === 'texts' && <div style={{ padding: 8, borderTop: '1px solid var(--line)' }}><button style={{ width: '100%' }} onClick={newTextFile}>+ Новый файл</button></div>}
         </aside>
 
-        <main className="main">
-          {!tree ? null : tab === 'screens' ? (
+        <main className={'main' + (tab === 'map' ? ' flush' : '')}>
+          {!tree ? null : tab === 'map' && flowPath ? (
+            <Suspense fallback={<div className="muted" style={{ padding: 16 }}>Загрузка карты…</div>}>
+              <FlowMap key={flowPath + '|' + docVer} ws={ws} path={flowPath} focus={focus} onLoaded={setFlowData} onErrors={setFlowErrors} />
+            </Suspense>
+          ) : tab === 'screens' ? (
             contentPath ? <ScreensView key={contentPath} ws={ws} path={contentPath} bot={bot} onLoaded={() => bump(n => n + 1)} />
               : <NoContent bot={bot} />
           ) : tab === 'texts' ? (
@@ -282,8 +307,9 @@ function NoContent({ bot }) {
       <div className="big-ico">📱</div>
       <h2>Экраны бота пока недоступны</h2>
       <p className="muted">
-        Чтобы видеть и редактировать экраны (сообщения, кнопки и картинки) как в мессенджере, тексты бота должны лежать
-        отдельно от кода — в файле <span className="mono">content/content.json</span>{bot?.folder ? <> внутри папки <span className="mono">{bot.folder}</span></> : ''} в формате <span className="mono">bot-crm/1</span>.
+        Чтобы видеть карту бота (экраны, кнопки и переходы), сценарий должен лежать отдельно от кода — в файле
+        {' '}<span className="mono">flow/flow.yaml</span>{bot?.folder ? <> внутри папки <span className="mono">{bot.folder}</span></> : ''}.
+        Старый формат <span className="mono">content/content.json</span> (bot-crm/1) тоже поддерживается.
       </p>
       <p className="muted">
         Формат описан в README Bot CRM. Пока можно править файлы во вкладках «Тексты» и «Картинки».
