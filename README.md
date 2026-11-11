@@ -34,7 +34,7 @@ GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**
 | `GITHUB_CLIENT_ID` | Client ID из OAuth App |
 | `GITHUB_CLIENT_SECRET` | Client secret из OAuth App |
 | `SESSION_SECRET` | длинная случайная строка, например результат `openssl rand -hex 32` |
-| `APP_URL` | *(необязательно)* `https://<ваш-проект>.vercel.app` |
+| `APP_URL` | *(необязательно, лучше не задавать)* — если задан, должен точно совпадать с адресом из Callback URL |
 
 4. **Deploy**. Если адрес проекта изменился, обновите callback URL в OAuth App.
 
@@ -66,3 +66,9 @@ src/                  → React‑приложение
 ## Ограничения
 - Размер одной картинки — до 3 МБ (лимит тела запроса в функциях Vercel — 4,5 МБ).
 - В YAML при правке в табличном режиме теряются комментарии. Чтобы их сохранить, используйте «Исходный код».
+
+## Частые ошибки
+**«The redirect_uri is not associated with this application»** — в настройках OAuth App указан не тот Callback URL.
+Он должен быть ровно `https://<адрес, где открыта CRM>/api/auth/callback`. Также проверьте, что переменная `APP_URL` в Vercel не задана или совпадает с этим адресом.
+
+**«Сессия входа не найдена»** — CRM открыта не по тому адресу, что указан в Callback URL (например, на preview-деплое). Откройте основной адрес проекта.

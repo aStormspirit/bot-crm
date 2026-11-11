@@ -6,7 +6,9 @@ export default async function handler(req, res) {
   const { code, state, error, error_description } = req.query;
   if (error) return fail(res, error_description || error);
   const expected = parseCookies(req)[STATE_COOKIE];
-  if (!code || !state || !expected || state !== expected) return fail(res, 'Неверный state — попробуйте войти ещё раз');
+  if (!code || !state || !expected || state !== expected) {
+    return fail(res, `Сессия входа не найдена. Откройте CRM по адресу ${baseUrl(req)} и нажмите «Подключить GitHub» ещё раз. Если ошибка повторяется — Callback URL в OAuth App должен быть ${baseUrl(req)}/api/auth/callback`);
+  }
 
   try {
     const r = await fetch('https://github.com/login/oauth/access_token', {
@@ -16,7 +18,7 @@ export default async function handler(req, res) {
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
         code,
-        redirect_uri: `${baseUrl(req)}/api/auth/callback`,
+        ...(process.env.APP_URL ? { redirect_uri: `${baseUrl(req)}/api/auth/callback` } : {}),
       }),
     });
     const data = await r.json();
