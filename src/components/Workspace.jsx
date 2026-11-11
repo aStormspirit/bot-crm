@@ -7,7 +7,7 @@ import Images from './Images.jsx';
 import CommitDialog from './CommitDialog.jsx';
 import SettingsDialog from './SettingsDialog.jsx';
 
-export default function Workspace({ repo, user, onBack }) {
+export default function Workspace({ repo, onDirty }) {
   const { toast, busy } = useUi();
   const full = repo.full_name;
   const canPush = !repo.permissions || repo.permissions.push;
@@ -47,9 +47,10 @@ export default function Workspace({ repo, user, onBack }) {
       setBranches(bs);
       setBranch(b);
       await reload(b);
-      LS.set('botcrm:recent', [full, ...LS.get('botcrm:recent', []).filter(x => x !== full)].slice(0, 6));
     });
   }, [full]);
+
+  useEffect(() => { onDirty?.(dirty.size); }, [dirty.size]);
 
   useEffect(() => {
     const h = e => { if (dirtyRef.current.size) { e.preventDefault(); e.returnValue = ''; } };
@@ -158,22 +159,26 @@ export default function Workspace({ repo, user, onBack }) {
 
   return (
     <div className="ws">
-      <div className="top">
-        <button className="ghost" title="К списку репозиториев" onClick={() => confirmDiscard('Есть несохранённые изменения. Выйти без сохранения?') && onBack()}>←</button>
-        <a className="title" href={repo.html_url} target="_blank" rel="noopener noreferrer">{full}</a>
+      <div className="ws-head">
+        <div className="ws-title">
+          <a href={repo.html_url} target="_blank" rel="noopener noreferrer" title="Открыть на GitHub">{full}</a>
+          {repo.private && <span className="badge">private</span>}
+          {!canPush && <span className="badge warn">только чтение</span>}
+        </div>
         {branch && (
-          <select value={branch} onChange={e => changeBranch(e.target.value)} title="Ветка">
-            {branches.map(b => <option key={b}>{b}</option>)}
-          </select>
+          <label className="branch" title="Ветка">
+            <span className="muted">⎇</span>
+            <select value={branch} onChange={e => changeBranch(e.target.value)}>
+              {branches.map(b => <option key={b}>{b}</option>)}
+            </select>
+          </label>
         )}
         <button className="ghost" title="Обновить из GitHub" onClick={refresh}>⟳</button>
-        {!canPush && <span className="badge warn">только чтение</span>}
         <span className="grow" />
         <button onClick={() => setModal('settings')}>⚙ Настройки</button>
         <button className="primary" disabled={!dirty.size} onClick={() => setModal('commit')}>
-          Сохранить в GitHub {dirty.size > 0 && `(${dirty.size})`}
+          Сохранить {dirty.size > 0 && `(${dirty.size})`}
         </button>
-        {user?.avatar_url && <img className="avatar sm" src={user.avatar_url} alt={user.login} title={user.login} />}
       </div>
 
       <div className="body">
