@@ -9,7 +9,7 @@ import { findContentPath } from '../content.js';
 import { findFlowPath } from '../flowPath.js';
 const FlowMap = lazy(() => import('./FlowMap.jsx'));
 const Broadcasts = lazy(() => import('./Broadcasts.jsx'));
-const Users = lazy(() => import('./Users.jsx'));
+const Analytics = lazy(() => import('./Analytics.jsx'));
 import CommitDialog from './CommitDialog.jsx';
 import SettingsDialog from './SettingsDialog.jsx';
 import { PLATFORMS } from '../store.js';
@@ -228,7 +228,7 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
             {fileTabs && <button className={tab === 'texts' ? 'on' : ''} onClick={() => setTab('texts')}>📝 Тексты</button>}
             {fileTabs && <button className={tab === 'images' ? 'on' : ''} onClick={() => setTab('images')}>🖼 Картинки</button>}
             {showBroadcasts && <button className={tab === 'broadcasts' ? 'on' : ''} onClick={() => setTab('broadcasts')}>📣 Рассылки</button>}
-            {showBroadcasts && <button className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>👥 Люди</button>}
+            {showBroadcasts && <button className={tab === 'analytics' ? 'on' : ''} onClick={() => setTab('analytics')}>📊 Аналитика</button>}
           </div>
           {(tab === 'texts' || tab === 'images') && (
             <div style={{ padding: 8 }}>
@@ -236,9 +236,10 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
             </div>
           )}
           <div className="files">
-            {tab === 'users' ? (
+            {tab === 'analytics' ? (
               <div className="muted small" style={{ padding: 12, lineHeight: 1.5 }}>
-                Люди, которые писали боту: из базы Chat API, только просмотр. Нажмите на строку, чтобы открыть карточку.
+                Аналитика по базе Chat API: сколько людей в боте, новые, активные, удержание, воронка и диалоги.
+                Дни считаются по Москве. В разделе «Люди» — поиск и карточка человека.
               </div>
             ) : tab === 'broadcasts' ? (
               <div className="muted small" style={{ padding: 12, lineHeight: 1.5 }}>
@@ -277,10 +278,10 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
           {tab === 'texts' && fileTabs && <div style={{ padding: 8, borderTop: '1px solid var(--line)' }}><button style={{ width: '100%' }} onClick={newTextFile}>+ Новый файл</button></div>}
         </aside>
 
-        <main className={'main' + (['map', 'broadcasts', 'users'].includes(tab) ? ' flush' : '')}>
-          {tab === 'users' ? (
+        <main className={'main' + (['map', 'broadcasts', 'analytics'].includes(tab) ? ' flush' : '')}>
+          {tab === 'analytics' ? (
             <Suspense fallback={<div className="muted" style={{ padding: 16 }}>Загрузка…</div>}>
-              <Users platform={broadcastPlatform} />
+              <Analytics platform={broadcastPlatform} />
             </Suspense>
           ) : tab === 'broadcasts' ? (
             <Suspense fallback={<div className="muted" style={{ padding: 16 }}>Загрузка…</div>}>
