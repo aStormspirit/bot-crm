@@ -1,0 +1,236 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { blobText, listBranches, loadTree } from '../github.js';
+import { DEFAULT_CFG, LS, allPaths, dirOf, ext, makeDoc, matches, serialize, baseName, isObj } from '../lib.js';
+import { useUi } from '../ui.jsx';
+import TextEditor from './TextEditor.jsx';
+import Images from './Images.jsx';
+import CommitDialog from './CommitDialog.jsx';
+import SettingsDialog from './SettingsDialog.jsx';
+
+export default function Workspace({ repo, user, onBack }) {
+  const { toast, busy } = useUi();
+  const full = repo.full_name;
+  const canPush = !repo.permissions || repo.permissions.push;
+
+  const [branches, setBranches] = useState([]);
+  const [branch, setBranch] = useState(null);
+  const [tree, setTree] = useState(null);
+  const [headSha, setHeadSha] = useState('');
+  const [dirty, setDirty] = useState(() => new Map());
+  const docs = useRef(new Map());
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const [docVer, setDocVer] = useState(0);
+  const [cfg, setCfg] = useState(() => ({ ...DEFAULT_CFG, ...LS.get('botcrm:cfg:' + full, {}) }));
+  const [tab, setTab] = useState('texts');
+  const [file, setFile] = useState(null);
+  const [cmp, setCmp] = useState('');
+  const [filter, setFilter] = useState('');
+  const [imgDir, setImgDir] = useState('');
+  const [modal, setModal] = useState(null);
+
+  const resetEdits = () => { setDirty(new Map()); docs.current.clear(); setDocVer(v => v + 1); };
+
+  const reload = useCallback(async br => {
+    const t = await loadTree(full, br);
+    setTree(t.tree);
+    setHeadSha(t.headSha);
+    if (t.truncated) toast('Репозиторий очень большой — показана часть файлов. Укажите папки в настройках.', { err: true, ms: 9000 });
+    return t.tree;
+  }, [full, toast]);
+
+  useEffect(() => {
+    busy(async () => {
+      const bs = await listBranches(full);
+      let b = LS.get('botcrm:branch:' + full, '') || repo.default_branch;
+      if (!bs.includes(b)) b = repo.default_branch;
+      setBranches(bs);
+      setBranch(b);
+      await reload(b);
+      LS.set('botcrm:recent', [full, ...LS.get('botcrm:recent', []).filter(x => x !== full)].slice(0, 6));
+    });
+  }, [full]);
+
+  useEffect(() => {
+    const h = e => { if (dirtyRef.current.size) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, []);
+
+  const confirmDiscard = msg => !dirty.size || confirm(msg);
+
+  const changeBranch = b => {
+    if (!confirmDiscard('Несохранённые изменения будут потеряны. Переключить ветку?')) return;
+    setBranch(b); LS.set('botcrm:branch:' + full, b);
+    resetEdits(); setFile(null); setCmp('');
+    busy(() => reload(b));
+  };
+  const refresh = () => {
+    if (!confirmDiscard('Несохранённые изменения будут потеряны. Обновить?')) return;
+    resetEdits();
+    busy(async () => { const t = await reload(branch); if (file && !t.has(file)) setFile(null); toast('Обновлено'); });
+  };
+
+  /* ---- операции над документами ---- */
+  const baseText = useCallback(async path => {
+    const t = tree.get(path);
+    return t ? blobText(full, t.sha) : null;
+  }, [tree, full]);
+
+  const getDoc = useCallback(async path => {
+    if (docs.current.has(path)) return docs.current.get(path);
+    const d = dirtyRef.current.get(path);
+    const base = await baseText(path);
+    const text = d?.type === 'text' ? d.content : base ?? '';
+    const doc = makeDoc(path, text, base);
+    docs.current.set(path, doc);
+    return doc;
+  }, [baseText]);
+
+  const commitDoc = useCallback((doc, text = serialize(doc)) => {
+    if (doc.kind === 'raw') doc.text = text;
+    setDirty(prev => {
+      const n = new Map(prev);
+      if (doc.base !== null && text === doc.base) n.delete(doc.path);
+      else n.set(doc.path, { type: 'text', content: text });
+      return n;
+    });
+  }, []);
+
+  const setChange = useCallback((path, change) => {
+    setDirty(prev => {
+      const n = new Map(prev);
+      if (change === null) n.delete(path);
+      else if (change.type === 'delete' && !tree.has(path)) n.delete(path);
+      else n.set(path, change);
+      return n;
+    });
+    docs.current.delete(path);
+  }, [tree]);
+
+  const paths = useMemo(() => (tree ? allPaths(tree, dirty) : []), [tree, dirty]);
+  const filesOf = useCallback(kind => paths.filter(p => matches(p, kind, cfg)), [paths, cfg]);
+
+  const openFile = p => {
+    setCmp(c => (c && c !== p && dirOf(c) === dirOf(p) && ext(c) === ext(p) ? c : ''));
+    setFile(p);
+  };
+
+  const newTextFile = async () => {
+    const dirs = cfg.textDirs.split(',').map(s => s.trim()).filter(Boolean);
+    const def = file ? dirOf(file) + '/' : dirs[0] ? dirs[0].replace(/\/$/, '') + '/' : '';
+    let p = prompt('Путь нового файла (например locales/de.json):', def);
+    if (!p) return;
+    p = p.trim().replace(/^\/+/, '');
+    if (paths.includes(p)) return toast('Такой файл уже существует', { err: true });
+    let content = '';
+    if (ext(p) === 'json') {
+      content = '{}\n';
+      const cur = file && docs.current.get(file);
+      if (cur?.kind === 'json' && confirm(`Скопировать ключи из ${baseName(cur.path)} (с пустыми значениями)?`)) {
+        const blank = v => (isObj(v) ? (Array.isArray(v) ? v.map(blank) : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, blank(x)]))) : '');
+        content = JSON.stringify(blank(cur.data), null, cur.indent) + '\n';
+      }
+    }
+    setChange(p, { type: 'text', content });
+    if (!matches(p, 'texts', cfg)) toast('Файл создан, но не попадает под фильтры из настроек', { err: true });
+    const prev = file;
+    setFile(p);
+    setCmp(prev && dirOf(prev) === dirOf(p) && ext(prev) === ext(p) ? prev : '');
+  };
+
+  const afterCommit = async ({ prUrl, commitSha, newBranch, count }) => {
+    resetEdits();
+    let b = branch;
+    if (newBranch) { b = newBranch; setBranches(x => [...x, newBranch]); setBranch(newBranch); LS.set('botcrm:branch:' + full, newBranch); }
+    const t = await reload(b);
+    if (file && !t.has(file)) setFile(null);
+    setModal(null);
+    toast(prUrl
+      ? <>Создан Pull Request: <a href={prUrl} target="_blank" rel="noopener noreferrer">открыть ↗</a></>
+      : <>Сохранено файлов: {count}. <a href={`${repo.html_url}/commit/${commitSha}`} target="_blank" rel="noopener noreferrer">коммит ↗</a></>, { ms: 12000 });
+  };
+
+  const ws = { full, repo, tree, dirty, docs, docVer, getDoc, commitDoc, setChange, cfg, filesOf, paths };
+
+  const textFiles = tree ? filesOf('texts').filter(p => p.toLowerCase().includes(filter.toLowerCase())) : [];
+  const imageFiles = tree ? filesOf('images') : [];
+
+  return (
+    <div className="ws">
+      <div className="top">
+        <button className="ghost" title="К списку репозиториев" onClick={() => confirmDiscard('Есть несохранённые изменения. Выйти без сохранения?') && onBack()}>←</button>
+        <a className="title" href={repo.html_url} target="_blank" rel="noopener noreferrer">{full}</a>
+        {branch && (
+          <select value={branch} onChange={e => changeBranch(e.target.value)} title="Ветка">
+            {branches.map(b => <option key={b}>{b}</option>)}
+          </select>
+        )}
+        <button className="ghost" title="Обновить из GitHub" onClick={refresh}>⟳</button>
+        {!canPush && <span className="badge warn">только чтение</span>}
+        <span className="grow" />
+        <button onClick={() => setModal('settings')}>⚙ Настройки</button>
+        <button className="primary" disabled={!dirty.size} onClick={() => setModal('commit')}>
+          Сохранить в GitHub {dirty.size > 0 && `(${dirty.size})`}
+        </button>
+        {user?.avatar_url && <img className="avatar sm" src={user.avatar_url} alt={user.login} title={user.login} />}
+      </div>
+
+      <div className="body">
+        <aside className="side">
+          <div className="tabs">
+            <button className={tab === 'texts' ? 'on' : ''} onClick={() => setTab('texts')}>📝 Тексты</button>
+            <button className={tab === 'images' ? 'on' : ''} onClick={() => setTab('images')}>🖼 Картинки</button>
+          </div>
+          <div style={{ padding: 8 }}>
+            <input style={{ width: '100%' }} placeholder="Фильтр файлов…" value={filter} onChange={e => setFilter(e.target.value)} />
+          </div>
+          <div className="files">
+            {tab === 'texts' ? (
+              textFiles.length ? textFiles.map((p, i) => {
+                const d = dirOf(p), showDir = i === 0 || dirOf(textFiles[i - 1]) !== d;
+                return (
+                  <div key={p}>
+                    {showDir && <div className="dir">{d || '/'}</div>}
+                    <div className={'file' + (p === file ? ' on' : '')} onClick={() => openFile(p)}>
+                      {dirty.has(p) && <span className="dot" />}{baseName(p)}
+                    </div>
+                  </div>
+                );
+              }) : tree && <div className="muted" style={{ padding: 12 }}>Файлы не найдены. Проверьте расширения и папки в ⚙ Настройках.</div>
+            ) : (
+              <ImageDirs files={imageFiles} filter={filter} imgDir={imgDir} setImgDir={setImgDir} />
+            )}
+          </div>
+          {tab === 'texts' && <div style={{ padding: 8, borderTop: '1px solid var(--line)' }}><button style={{ width: '100%' }} onClick={newTextFile}>+ Новый файл</button></div>}
+        </aside>
+
+        <main className="main">
+          {!tree ? null : tab === 'texts' ? (
+            file ? <TextEditor key={file + '|' + docVer} ws={ws} file={file} cmp={cmp} setCmp={setCmp} onDeleted={() => setFile(null)} />
+              : <div className="empty"><div className="big-ico">📝</div>Выберите файл с текстами слева.<br /><span className="small">JSON и YAML открываются как таблица «ключ → текст», остальные — как обычный текст.</span></div>
+          ) : (
+            <Images ws={ws} files={imageFiles.filter(p => (!imgDir || dirOf(p) === imgDir) && p.toLowerCase().includes(filter.toLowerCase()))} imgDir={imgDir} setImgDir={setImgDir} />
+          )}
+        </main>
+      </div>
+
+      {modal === 'settings' && <SettingsDialog cfg={cfg} full={full} onClose={() => setModal(null)} onSave={c => { setCfg(c); setModal(null); }} />}
+      {modal === 'commit' && <CommitDialog ws={ws} branch={branch} headSha={headSha} canPush={canPush} onClose={() => setModal(null)} onDone={afterCommit}
+        onUndo={p => { setChange(p, null); if (p === file && !tree.has(p)) setFile(null); setDocVer(v => v + 1); }} />}
+    </div>
+  );
+}
+
+function ImageDirs({ files, filter, imgDir, setImgDir }) {
+  const dirs = new Map();
+  files.filter(p => p.toLowerCase().includes(filter.toLowerCase())).forEach(p => dirs.set(dirOf(p), (dirs.get(dirOf(p)) || 0) + 1));
+  return (
+    <>
+      <div className={'file' + (!imgDir ? ' on' : '')} onClick={() => setImgDir('')}>Все картинки <span className="muted">({files.length})</span></div>
+      {[...dirs].map(([d, n]) => (
+        <div key={d} className={'file' + (imgDir === d ? ' on' : '')} onClick={() => setImgDir(d)}>📁 {d || '/'} <span className="muted">({n})</span></div>
+      ))}
+    </>
+  );
+}
