@@ -9,6 +9,7 @@ import { findContentPath } from '../content.js';
 import { findFlowPath } from '../flowPath.js';
 const FlowMap = lazy(() => import('./FlowMap.jsx'));
 const Broadcasts = lazy(() => import('./Broadcasts.jsx'));
+const Users = lazy(() => import('./Users.jsx'));
 import CommitDialog from './CommitDialog.jsx';
 import SettingsDialog from './SettingsDialog.jsx';
 import { PLATFORMS } from '../store.js';
@@ -173,7 +174,7 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
   const blocked = flowErrors.length > 0;
 
   // У бота с картой тексты и картинки правятся на карте: отдельные вкладки не нужны.
-  const fileTabs = !flowPath;
+  const fileTabs = !!tree && !flowPath;
   const showBroadcasts = !!bot || !!flowPath;
   const broadcastPlatform = flowData?.bot || ({ telegram: 'tg', vk: 'vk', web: 'web' })[bot?.platform] || 'tg';
 
@@ -227,6 +228,7 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
             {fileTabs && <button className={tab === 'texts' ? 'on' : ''} onClick={() => setTab('texts')}>📝 Тексты</button>}
             {fileTabs && <button className={tab === 'images' ? 'on' : ''} onClick={() => setTab('images')}>🖼 Картинки</button>}
             {showBroadcasts && <button className={tab === 'broadcasts' ? 'on' : ''} onClick={() => setTab('broadcasts')}>📣 Рассылки</button>}
+            {showBroadcasts && <button className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>👥 Люди</button>}
           </div>
           {(tab === 'texts' || tab === 'images') && (
             <div style={{ padding: 8 }}>
@@ -234,7 +236,11 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
             </div>
           )}
           <div className="files">
-            {tab === 'broadcasts' ? (
+            {tab === 'users' ? (
+              <div className="muted small" style={{ padding: 12, lineHeight: 1.5 }}>
+                Люди, которые писали боту: из базы Chat API, только просмотр. Нажмите на строку, чтобы открыть карточку.
+              </div>
+            ) : tab === 'broadcasts' ? (
               <div className="muted small" style={{ padding: 12, lineHeight: 1.5 }}>
                 Рассылки отправляет Chat API всем людям бота: разово по времени или каждому через паузу после события.
                 Текст и фото рассылки хранятся в Chat API, а не в репозитории.
@@ -271,8 +277,12 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
           {tab === 'texts' && fileTabs && <div style={{ padding: 8, borderTop: '1px solid var(--line)' }}><button style={{ width: '100%' }} onClick={newTextFile}>+ Новый файл</button></div>}
         </aside>
 
-        <main className={'main' + (tab === 'map' || tab === 'broadcasts' ? ' flush' : '')}>
-          {tab === 'broadcasts' ? (
+        <main className={'main' + (['map', 'broadcasts', 'users'].includes(tab) ? ' flush' : '')}>
+          {tab === 'users' ? (
+            <Suspense fallback={<div className="muted" style={{ padding: 16 }}>Загрузка…</div>}>
+              <Users platform={broadcastPlatform} />
+            </Suspense>
+          ) : tab === 'broadcasts' ? (
             <Suspense fallback={<div className="muted" style={{ padding: 16 }}>Загрузка…</div>}>
               <Broadcasts platform={broadcastPlatform} botName={bot?.name} />
             </Suspense>
