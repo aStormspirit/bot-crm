@@ -483,7 +483,6 @@ button.small { font-size: 12.5px; padding: 2px 6px; }
 .bc-previews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
 .bc-previews .bc-preview { position: static; display: flex; flex-direction: column; gap: 10px; }
 .bc-previews .bubble-img { cursor: default; }
-.bc-ph { height: 150px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; background: linear-gradient(135deg, #7b5cf0, #e58bd0); }
 .bc-kb { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 .bc-kb span { background: rgba(255,255,255,.75); color: #1d2129; text-align: center; border-radius: 8px; padding: 6px; font-size: 13px; box-shadow: 0 1px 1px rgba(0,0,0,.12); }
 .bc-previews .bc-preview > button { align-self: flex-start; }

@@ -21,7 +21,10 @@ function useScreenImages(ws, keys) {
       const d = ws.dirty.get(p);
       let src = '';
       if (d?.type === 'binary') src = `data:${d.mime || mime};base64,${d.base64}`;
-      else if (ws.tree?.get(p)) src = `data:${mime};base64,${await blobB64(ws.full, ws.tree.get(p).sha).catch(() => '')}`;
+      else if (ws.tree?.get(p)) {
+        const b64 = await blobB64(ws.full, ws.tree.get(p).sha).catch(() => '');
+        src = b64 ? `data:${mime};base64,${b64}` : '';
+      }
       if (alive) setSrcs(s => (s[p] === src ? s : { ...s, [p]: src }));
     });
     return () => { alive = false; };

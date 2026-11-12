@@ -93,6 +93,7 @@ function FlowMapInner({ ws, path, focus, onLoaded, onErrors }) {
   const [overlap, setOverlap] = useState(false);
   const rf = useReactFlow();
   const fitted = useRef(false);
+  const focusDone = useRef(null); // t последнего применённого focus
 
   const platform = platformOf(data);
   const screens = data?.screens || {};
@@ -169,7 +170,12 @@ function FlowMapInner({ ws, path, focus, onLoaded, onErrors }) {
   /* --- первичное позиционирование и проверка наложений --- */
   useEffect(() => {
     if (!nodes.length || !nodes.every(n => n.measured?.height)) return;
-    if (!fitted.current) { fitted.current = true; requestAnimationFrame(() => rf.fitView({ padding: 0.15, maxZoom: 1 })); }
+    if (!fitted.current) {
+      fitted.current = true;
+      // Если карту открыли с фокусом на экран («Открыть на карте»), его центрирует эффект ниже, а не fitView.
+      const pending = focus?.id && focus.t !== focusDone.current && screens[focus.id];
+      if (!pending) requestAnimationFrame(() => rf.fitView({ padding: 0.15, maxZoom: 1 }));
+    }
     const box = n => ({ x: n.position.x, y: n.position.y, w: n.measured.width, h: n.measured.height });
     let hit = false;
     for (let i = 0; i < nodes.length && !hit; i++) for (let j = i + 1; j < nodes.length; j++) {
@@ -179,12 +185,19 @@ function FlowMapInner({ ws, path, focus, onLoaded, onErrors }) {
     setOverlap(hit);
   }, [nodes]);
 
+  // Фокус применяется, когда экран уже загружен и узел измерен (карта грузится асинхронно).
   useEffect(() => {
-    if (!focus?.id || !screens[focus.id]) return;
-    setSel(focus.id);
+    if (!focus?.id || focus.t === focusDone.current || !screens[focus.id]) return;
     const n = rf.getNode(focus.id);
-    if (n) rf.setCenter(n.position.x + NODE_W / 2, n.position.y + (n.measured?.height || 200) / 2, { zoom: 1, duration: 400 });
-  }, [focus]);
+    if (!n?.measured?.height) return;
+    focusDone.current = focus.t;
+    setSel(focus.id);
+    // Панель правки экрана открывается следом и сужает холст: центрируем после её появления.
+    setTimeout(() => {
+      const m = rf.getNode(focus.id) || n;
+      rf.setCenter(m.position.x + NODE_W / 2, m.position.y + (m.measured?.height || n.measured.height) / 2, { zoom: 1, duration: 400 });
+    }, 120);
+  }, [focus, data, nodes]);
 
   const onNodesChange = useCallback(ch => setNodes(ns => applyNodeChanges(ch, ns)), []);
   const onNodeDragStop = useCallback((_, node, dragged) => {
