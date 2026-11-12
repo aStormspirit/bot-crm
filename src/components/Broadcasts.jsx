@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { chat } from '../chat.js';
 import { MAX_UPLOAD } from '../lib.js';
 import { useUi } from '../ui.jsx';
+import PromoCard, { PROMO_ID, promoScreens } from './PromoCard.jsx';
 
 export const BROADCAST_PLATFORMS = [
   { id: 'tg', label: 'Telegram' },
@@ -44,11 +45,11 @@ const whenText = b => (b.kind === 'at'
 
 /* ===================== раздел ===================== */
 
-export default function Broadcasts({ platform, botName }) {
+export default function Broadcasts({ platform, botName, promo }) {
   const { toast, busy } = useUi();
   const [status, setStatus] = useState(null);
   const [list, setList] = useState(null);
-  const [sel, setSel] = useState(null); // id | 'new'
+  const [sel, setSel] = useState(null); // id | 'new' | PROMO_ID
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -60,21 +61,25 @@ export default function Broadcasts({ platform, botName }) {
 
   useEffect(() => { load().catch(e => setError(e.message)); }, [load]);
 
-  if (error) return <div style={{ padding: 16 }}><div className="hint err">{error}</div></div>;
-  if (!status) return <div className="muted" style={{ padding: 16 }}>Загрузка рассылок…</div>;
-  if (!status.configured) return <NotConfigured />;
-  if (!status.admin) {
-    return (
+  // Системная карточка берётся из flow бота, а не из Chat API: видна и когда Chat API недоступен.
+  const hasPromo = !!promo?.data && promoScreens(promo.data).length > 0;
+  let blocker = null;
+  if (error) blocker = <div style={{ padding: 16 }}><div className="hint err">{error}</div></div>;
+  else if (!status) blocker = <div className="muted" style={{ padding: 16 }}>Загрузка рассылок…</div>;
+  else if (!status.configured) blocker = <NotConfigured />;
+  else if (!status.admin) {
+    blocker = (
       <div className="no-content">
         <div className="big-ico">🔒</div>
         <h2>Нет доступа к рассылкам</h2>
         <p className="muted">Рассылка уходит всем людям бота, поэтому раздел открыт только логинам GitHub из переменной <span className="mono">CRM_ADMINS</span> в Vercel. Добавьте туда <b className="mono">{status.login}</b>.</p>
       </div>
     );
-  }
-  if (!list) return <div className="muted" style={{ padding: 16 }}>Загрузка рассылок…</div>;
+  } else if (!list) blocker = <div className="muted" style={{ padding: 16 }}>Загрузка рассылок…</div>;
+  if (blocker && !hasPromo) return blocker;
 
-  const current = sel === 'new' ? null : list.find(b => b.id === sel);
+  const items = list || [];
+  const current = sel === 'new' || sel === PROMO_ID ? null : items.find(b => b.id === sel);
   const upsert = b => setList(l => (l.some(x => x.id === b.id) ? l.map(x => (x.id === b.id ? b : x)) : [b, ...l]));
 
   return (
@@ -82,11 +87,25 @@ export default function Broadcasts({ platform, botName }) {
       <div className="bc-list">
         <div className="bc-list-head">
           <b className="grow">Рассылки</b>
-          <button className="ghost" title="Обновить" onClick={() => busy(load)}>⟳</button>
-          <button className="primary" onClick={() => setSel('new')}>＋ Новая</button>
+          {!blocker && <button className="ghost" title="Обновить" onClick={() => busy(load)}>⟳</button>}
+          {!blocker && <button className="primary" onClick={() => setSel('new')}>＋ Новая</button>}
         </div>
-        {list.length === 0 && <div className="muted small" style={{ padding: 12 }}>Рассылок пока нет. Создайте первую: разовую по времени или цепочку после события.</div>}
-        {list.map(b => (
+        {hasPromo && (
+          <div className={'bc-item' + (sel === PROMO_ID ? ' on' : '')} onClick={() => setSel(PROMO_ID)}>
+            <div className="row" style={{ gap: 6 }}>
+              <span className="grow bc-title">💎 Промо премиума</span>
+              <span className="st st-run">Работает · авто</span>
+            </div>
+            <div className="muted small">⚡ 5-й, 15-й, 25-й… завершённый диалог</div>
+            <div className="muted small">VK · TG<span className="bc-sys">системная</span></div>
+          </div>
+        )}
+        {!blocker && items.length === 0 && (
+          <div className="muted small" style={{ padding: 12 }}>
+            {hasPromo ? 'Обычных рассылок пока нет. Создайте первую: разовую по времени или цепочку после события.' : 'Рассылок пока нет. Создайте первую: разовую по времени или цепочку после события.'}
+          </div>
+        )}
+        {items.map(b => (
           <div key={b.id} className={'bc-item' + (sel === b.id ? ' on' : '')} onClick={() => setSel(b.id)}>
             <div className="row" style={{ gap: 6 }}>
               <span className="grow bc-title">{b.title || b.text.split('\n')[0]}</span>
@@ -103,7 +122,9 @@ export default function Broadcasts({ platform, botName }) {
         ))}
       </div>
       <div className="bc-main">
-        {sel === 'new' || current ? (
+        {sel === PROMO_ID && hasPromo ? (
+          <PromoCard data={promo.data} flowPath={promo.flowPath} ws={promo.ws} onOpenScreen={promo.onOpenScreen} />
+        ) : blocker ? blocker : sel === 'new' || current ? (
           <Editor key={sel} b={current} platform={platform} botName={botName} toast={toast} busy={busy}
             onSaved={b => { upsert(b); setSel(b.id); }}
             onDeleted={id => { setList(l => l.filter(x => x.id !== id)); setSel(null); }} />

@@ -41,6 +41,7 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
   const [flowData, setFlowData] = useState(null);
   const [flowErrors, setFlowErrors] = useState([]);
   const [focus, setFocus] = useState(null);
+  const [promoFlow, setPromoFlow] = useState(null);
   const [, bump] = useState(0);
 
   const resetEdits = () => { setDirty(new Map()); docs.current.clear(); setDocVer(v => v + 1); };
@@ -182,7 +183,22 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
     if (flowPath && ((tab === 'screens' && !contentPath) || tab === 'texts' || tab === 'images')) setTab('map');
     if (!flowPath && tab === 'map') setTab(showScreensTab ? 'screens' : 'texts');
   }, [flowPath, contentPath]);
-  useEffect(() => { setFlowData(null); setFlowErrors([]); }, [flowPath]);
+  useEffect(() => { setFlowData(null); setFlowErrors([]); setPromoFlow(null); }, [flowPath]);
+
+  // Вкладке «Рассылки» нужны экраны промо, даже если карту не открывали (с учётом несохранённых правок).
+  const flowDirty = flowPath ? dirty.get(flowPath) : null;
+  useEffect(() => {
+    if (tab !== 'broadcasts' || !flowPath || !tree) return;
+    let alive = true;
+    (async () => {
+      const d = await getDoc(flowPath);
+      const text = flowDirty?.type === 'text' ? flowDirty.content : d.text;
+      const { parseFlow } = await import('../flow.js'); // yaml не в основном бандле
+      const { data } = parseFlow(text ?? '');
+      if (alive) setPromoFlow({ data, flowPath });
+    })().catch(() => alive && setPromoFlow(null));
+    return () => { alive = false; };
+  }, [tab, flowPath, tree, flowDirty, docVer, getDoc]);
 
   const textFiles = tree ? filesOf('texts').filter(p => p.toLowerCase().includes(filter.toLowerCase())) : [];
   const imageFiles = tree ? filesOf('images') : [];
@@ -285,7 +301,8 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
             </Suspense>
           ) : tab === 'broadcasts' ? (
             <Suspense fallback={<div className="muted" style={{ padding: 16 }}>Загрузка…</div>}>
-              <Broadcasts platform={broadcastPlatform} botName={bot?.name} />
+              <Broadcasts platform={broadcastPlatform} botName={bot?.name}
+                promo={promoFlow ? { ...promoFlow, ws, onOpenScreen: sid => { setTab('map'); setFocus({ id: sid, t: Date.now() }); } } : null} />
             </Suspense>
           ) : !tree ? null : tab === 'map' && flowPath ? (
             <Suspense fallback={<div className="muted" style={{ padding: 16 }}>Загрузка карты…</div>}>
