@@ -139,7 +139,7 @@ function List() {
                         <td className="nw">
                           <div className="row">
                             {(c.status === 'error' || !c.has_token) && <button className="ghost" onClick={() => setDlg({ groupId: c.group_id })}>Заменить ключ</button>}
-                            {c.enabled
+                            {c.status === 'error' && c.enabled ? null : c.enabled
                               ? <button className="ghost danger" onClick={() => toggle(c)}>Отключить</button>
                               : <button className="ghost" onClick={() => toggle(c)}>Включить</button>}
                           </div>

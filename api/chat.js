@@ -2,10 +2,10 @@ import crypto from 'node:crypto';
 import { getSession } from './_lib/session.js';
 
 /**
- * Прокси к Chat API (dating-api) для разделов «Рассылки» и «Аналитика».
+ * Прокси к Chat API (dating-api) для разделов «Рассылки», «Аналитика» и «Сообщества» (ВК).
  *
  * Токен Chat API живёт только здесь, в переменных Vercel. Доступ — только у GitHub-логинов из CRM_ADMINS:
- * войти в CRM может любой пользователь GitHub, а рассылка уходит всем людям бота.
+ * войти в CRM может любой пользователь GitHub, а рассылка уходит всем людям бота, а ключи сообществ управляют самими ботами.
  *
  * Переменные: CHAT_API_URL (например https://api.chatwithyou.site), CHAT_API_CRM_TOKEN,
  * CRM_ADMINS (логины GitHub через запятую), при Cloudflare Access — CF_ACCESS_CLIENT_ID и CF_ACCESS_CLIENT_SECRET.
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ configured: configured(), admin: isAdmin, login });
   }
   if (!configured()) return res.status(503).json({ message: 'Рассылки не настроены: задайте CHAT_API_URL, CHAT_API_CRM_TOKEN и CRM_ADMINS в Vercel' });
-  if (!isAdmin) return res.status(403).json({ message: `У ${login} нет доступа к рассылкам: добавьте логин в CRM_ADMINS` });
+  if (!isAdmin) return res.status(403).json({ message: `У ${login} нет доступа к разделам Chat API (рассылки, аналитика, сообщества): добавьте логин в CRM_ADMINS` });
   if (!ALLOWED.test(path) || path.includes('..')) return res.status(400).json({ message: 'Path not allowed' });
   if (READ_ONLY.test(path) && req.method !== 'GET') return res.status(405).json({ message: 'Пользователи и аналитика доступны только для чтения' });
 

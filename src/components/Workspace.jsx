@@ -183,8 +183,9 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
 
   useEffect(() => {
     if (flowPath && ((tab === 'screens' && !contentPath) || tab === 'texts' || tab === 'images')) setTab('map');
+    if (tab === 'communities' && !showCommunities) setTab(flowPath ? 'map' : 'screens');
     if (!flowPath && tab === 'map') setTab(showScreensTab ? 'screens' : 'texts');
-  }, [flowPath, contentPath]);
+  }, [flowPath, contentPath, showCommunities]);
   useEffect(() => { setFlowData(null); setFlowErrors([]); setPromoFlow(null); }, [flowPath]);
 
   // Вкладке «Рассылки» нужны экраны промо, даже если карту не открывали (с учётом несохранённых правок).
