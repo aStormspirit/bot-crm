@@ -11,8 +11,8 @@ import { getSession } from './_lib/session.js';
  * CRM_ADMINS (логины GitHub через запятую), при Cloudflare Access — CF_ACCESS_CLIENT_ID и CF_ACCESS_CLIENT_SECRET.
  */
 
-// Только рассылки, чтение пользователей и аналитики.
-const ALLOWED = /^\/(broadcasts(\/audience|\/\d+(\/image)?)?|users(\/stats|\/(vk|tg|web)\/\d+)?|analytics)(\?[\w=&%.@-]*)?$/;
+// Рассылки, чтение пользователей и аналитики, сообщества ВК (без /tokens, /import, /status — они для бота).
+const ALLOWED = /^\/(broadcasts(\/audience|\/\d+(\/image)?)?|users(\/stats|\/(vk|tg|web)\/\d+)?|analytics|channels\/vk(\/check|\/\d+(\/token)?)?)(\?[\w=&%.@-]*)?$/;
 const READ_ONLY = /^\/(users|analytics)/;
 const METHODS = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'];
 const MAX_BODY = 4.5 * 1024 * 1024;

@@ -10,6 +10,7 @@ import { findFlowPath } from '../flowPath.js';
 const FlowMap = lazy(() => import('./FlowMap.jsx'));
 const Broadcasts = lazy(() => import('./Broadcasts.jsx'));
 const Analytics = lazy(() => import('./Analytics.jsx'));
+const Communities = lazy(() => import('./Communities.jsx'));
 import CommitDialog from './CommitDialog.jsx';
 import SettingsDialog from './SettingsDialog.jsx';
 import { PLATFORMS } from '../store.js';
@@ -177,6 +178,7 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
   // У бота с картой тексты и картинки правятся на карте: отдельные вкладки не нужны.
   const fileTabs = !!tree && !flowPath;
   const showBroadcasts = !!bot || !!flowPath;
+  const showCommunities = showBroadcasts && bot?.platform === 'vk';
   const broadcastPlatform = flowData?.bot || ({ telegram: 'tg', vk: 'vk', web: 'web' })[bot?.platform] || 'tg';
 
   useEffect(() => {
@@ -245,6 +247,7 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
             {fileTabs && <button className={tab === 'images' ? 'on' : ''} onClick={() => setTab('images')}>🖼 Картинки</button>}
             {showBroadcasts && <button className={tab === 'broadcasts' ? 'on' : ''} onClick={() => setTab('broadcasts')}>📣 Рассылки</button>}
             {showBroadcasts && <button className={tab === 'analytics' ? 'on' : ''} onClick={() => setTab('analytics')}>📊 Аналитика</button>}
+            {showCommunities && <button className={tab === 'communities' ? 'on' : ''} onClick={() => setTab('communities')}>🔌 Сообщества</button>}
           </div>
           {(tab === 'texts' || tab === 'images') && (
             <div style={{ padding: 8 }}>
@@ -252,7 +255,12 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
             </div>
           )}
           <div className="files">
-            {tab === 'analytics' ? (
+            {tab === 'communities' ? (
+              <div className="muted small" style={{ padding: 12, lineHeight: 1.5 }}>
+                Сообщества ВК, к которым подключён бот. Ключи хранит Chat API в зашифрованном виде; в CRM они видны только частично.
+                Бот подхватывает новое сообщество за минуту, без перезапуска.
+              </div>
+            ) : tab === 'analytics' ? (
               <div className="muted small" style={{ padding: 12, lineHeight: 1.5 }}>
                 Аналитика по базе Chat API: сколько людей в боте, новые, активные, удержание, воронка и диалоги.
                 Дни считаются по Москве. В разделе «Люди» — поиск и карточка человека.
@@ -295,7 +303,11 @@ export default function Workspace({ repo, bot, project, onDirty, onEditBot, onSa
         </aside>
 
         <main className={'main' + (['map', 'broadcasts', 'analytics'].includes(tab) ? ' flush' : '')}>
-          {tab === 'analytics' ? (
+          {tab === 'communities' && showCommunities ? (
+            <Suspense fallback={<div className="muted" style={{ padding: 16 }}>Загрузка…</div>}>
+              <Communities />
+            </Suspense>
+          ) : tab === 'analytics' ? (
             <Suspense fallback={<div className="muted" style={{ padding: 16 }}>Загрузка…</div>}>
               <Analytics platform={broadcastPlatform} />
             </Suspense>
