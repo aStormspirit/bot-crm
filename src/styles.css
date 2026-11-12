@@ -140,8 +140,8 @@ h2 { font-size: 16px; margin: 0 0 12px; }
 .branch { display: flex; align-items: center; gap: 4px; }
 .body { display: grid; grid-template-columns: 250px 1fr; min-height: 0; }
 .side { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
-.tabs { display: flex; border-bottom: 1px solid var(--line); }
-.tabs button { flex: 1; border: 0; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; padding: 10px; }
+.tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.tabs button { flex: 1 0 auto; border: 0; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; padding: 10px; }
 .tabs button.on { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
 .files { overflow: auto; flex: 1; padding: 6px 0; }
 .dir { padding: 8px 12px 2px; font-size: 11px; color: var(--muted); word-break: break-all; }
@@ -498,10 +498,11 @@ button.small { font-size: 12.5px; padding: 2px 6px; }
 .cm-table td.nw { white-space: nowrap; }
 .cm-table tr.off-row { opacity: .6; }
 .cm-ava { width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; flex: none; object-fit: cover; }
-.cm-st { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.cm-st { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; max-width: 260px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.cm-st span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; word-break: break-word; }
 .cm-st i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; background: var(--muted); }
-.cm-st.ok i { background: var(--ok); }
-.cm-st.err { color: var(--danger); } .cm-st.err i { background: var(--danger); }
+.cm-st.ok { border-color: var(--ok); } .cm-st.ok i { background: var(--ok); }
+.cm-st.err { color: var(--danger); border-color: var(--danger); background: var(--missing); } .cm-st.err i { background: var(--danger); }
 .cm-st.off { color: var(--muted); }
 .cm-sum { display: flex; gap: 12px; margin-bottom: 14px; }
 .cm-sum .card { padding: 12px 16px; flex: 1; }

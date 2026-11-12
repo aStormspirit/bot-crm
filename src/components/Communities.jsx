@@ -134,7 +134,7 @@ function List() {
                           </div>
                         </td>
                         <td className="mono muted nw">{c.has_token ? c.token_hint : 'нет ключа'}</td>
-                        <td><span className={'cm-st ' + s.cls}><i />{s.text}</span></td>
+                        <td><span className={'cm-st ' + s.cls} title={s.text}><i /><span>{s.text}</span></span></td>
                         <td className="muted small nw">{ago(c.last_seen_at)}</td>
                         <td className="nw">
                           <div className="row">
